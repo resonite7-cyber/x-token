@@ -17,6 +17,16 @@ interface XUser {
   profile_image_url?: string;
 }
 
+const SOLANA_RPC_URL =
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+
+// Solscan defaults to mainnet, so non-mainnet links need an explicit cluster.
+const SOLSCAN_CLUSTER_PARAM = SOLANA_RPC_URL.includes("devnet")
+  ? "?cluster=devnet"
+  : SOLANA_RPC_URL.includes("testnet")
+    ? "?cluster=testnet"
+    : "";
+
 export default function Home() {
   // =====================================================
   // X (TWITTER) AUTH
@@ -592,7 +602,7 @@ export default function Home() {
                   </div>
 
                   <a
-                    href={`https://solscan.io/token/${mintAddress}`}
+                    href={`https://solscan.io/token/${mintAddress}${SOLSCAN_CLUSTER_PARAM}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-3 block text-center text-sm text-blue-400 hover:text-blue-300"
@@ -613,7 +623,7 @@ export default function Home() {
                   </div>
 
                   <a
-                    href={`https://solscan.io/tx/${transactionSignature}`}
+                    href={`https://solscan.io/tx/${transactionSignature}${SOLSCAN_CLUSTER_PARAM}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="mt-3 block text-center text-sm text-blue-400 hover:text-blue-300"
@@ -632,6 +642,15 @@ export default function Home() {
                 >
                   Open on Pump.fun ↗
                 </a>
+
+                {SOLSCAN_CLUSTER_PARAM && (
+                  <p className="mt-3 text-center text-xs text-gray-600">
+                    Buying/selling on Pump.fun only works for coins created on
+                    Solana mainnet. This coin was created on{" "}
+                    {SOLSCAN_CLUSTER_PARAM.replace("?cluster=", "")}, so the
+                    Pump.fun link above won&apos;t show a live market yet.
+                  </p>
+                )}
               </div>
             )}
 

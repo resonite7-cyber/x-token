@@ -8,6 +8,12 @@ FROM node:22-alpine AS base
 FROM base AS deps
 WORKDIR /app
 
+# Native deps (usb, utf-8-validate, bufferutil, etc.) need a build toolchain
+RUN apk add --no-cache python3 make g++ linux-headers eudev-dev libusb-dev pkgconfig
+
+# The lockfile requires npm >=11's resolver
+RUN npm install -g npm@11
+
 COPY package.json package-lock.json ./
 RUN npm ci
 
