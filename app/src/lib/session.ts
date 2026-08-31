@@ -1,12 +1,14 @@
 import { SignJWT, jwtVerify } from "jose";
 
-const secret = process.env.SESSION_SECRET;
+function getSecretKey() {
+  const secret = process.env.SESSION_SECRET;
 
-if (!secret) {
-  throw new Error("SESSION_SECRET is missing");
+  if (!secret) {
+    throw new Error("SESSION_SECRET is missing");
+  }
+
+  return new TextEncoder().encode(secret);
 }
-
-const secretKey = new TextEncoder().encode(secret);
 
 export interface XUser {
   id: string;
@@ -26,12 +28,12 @@ export async function createSession(user: XUser, accessToken: string) {
     })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(secretKey);
+    .sign(getSecretKey());
 }
 
 export async function getSession(token: string) {
   try {
-    const { payload } = await jwtVerify(token, secretKey);
+    const { payload } = await jwtVerify(token, getSecretKey());
 
     return {
       user: payload.user as XUser,
