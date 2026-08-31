@@ -40,7 +40,13 @@ export default function Home() {
     fetch("/api/auth/x/me")
       .then((res) => (res.ok ? res.json() : { authenticated: false }))
       .then((data) => {
-        setXUser(data.authenticated ? data.user : null);
+        const user = data.authenticated ? data.user : null;
+
+        setXUser(user);
+
+        if (user) {
+          setTwitter(`https://x.com/${user.username}`);
+        }
       })
       .catch(() => {
         setXUser(null);
