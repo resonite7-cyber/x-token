@@ -18,6 +18,7 @@ import {
   Connection,
   PublicKey,
   Transaction,
+  TransactionInstruction,
 } from "@solana/web3.js";
 
 import BN from "bn.js";
@@ -127,7 +128,7 @@ export async function getMintPrice(
   };
 }
 
-export async function buildBuyTransaction({
+export async function buildBuyInstructions({
   connection,
   mint,
   user,
@@ -139,7 +140,7 @@ export async function buildBuyTransaction({
   user: PublicKey;
   solAmountLamports: BN;
   slippagePercent?: number;
-}): Promise<Transaction> {
+}): Promise<TransactionInstruction[]> {
   const onlineSdk = new OnlinePumpSdk(connection);
 
   const [global, { bondingCurveAccountInfo, bondingCurve, associatedUserAccountInfo }] =
@@ -173,7 +174,7 @@ export async function buildBuyTransaction({
     throw new Error("SOL amount is too small to buy any tokens.");
   }
 
-  const instructions = await PUMP_SDK.buyV2Instructions({
+  return PUMP_SDK.buyV2Instructions({
     global,
     bondingCurveAccountInfo,
     bondingCurve,
@@ -186,20 +187,9 @@ export async function buildBuyTransaction({
     tokenProgram: MINT_TOKEN_PROGRAM,
     quoteTokenProgram: QUOTE_TOKEN_PROGRAM,
   });
-
-  const { blockhash, lastValidBlockHeight } =
-    await connection.getLatestBlockhash("confirmed");
-
-  const transaction = new Transaction();
-  transaction.feePayer = user;
-  transaction.recentBlockhash = blockhash;
-  transaction.lastValidBlockHeight = lastValidBlockHeight;
-  transaction.add(...instructions);
-
-  return transaction;
 }
 
-export async function buildSellTransaction({
+export async function buildSellInstructions({
   connection,
   mint,
   user,
@@ -211,7 +201,7 @@ export async function buildSellTransaction({
   user: PublicKey;
   tokenAmount: BN;
   slippagePercent?: number;
-}): Promise<Transaction> {
+}): Promise<TransactionInstruction[]> {
   const onlineSdk = new OnlinePumpSdk(connection);
 
   const [global, { bondingCurveAccountInfo, bondingCurve }] = await Promise.all([
@@ -243,7 +233,7 @@ export async function buildSellTransaction({
     throw new Error("Token amount is too small to sell for any SOL.");
   }
 
-  const instructions = await PUMP_SDK.sellV2Instructions({
+  return PUMP_SDK.sellV2Instructions({
     global,
     bondingCurveAccountInfo,
     bondingCurve,
@@ -255,7 +245,23 @@ export async function buildSellTransaction({
     tokenProgram: MINT_TOKEN_PROGRAM,
     quoteTokenProgram: QUOTE_TOKEN_PROGRAM,
   });
+}
 
+/**
+ * Attaches a freshly-fetched blockhash to instructions. Callers should invoke
+ * this immediately before requesting a wallet signature, not earlier in the
+ * flow — a blockhash is only valid for ~60-90s, and slow SDK/network calls or
+ * wallet-popup latency can otherwise cause `Blockhash not found` at send time.
+ */
+export async function finalizeTransaction({
+  connection,
+  user,
+  instructions,
+}: {
+  connection: Connection;
+  user: PublicKey;
+  instructions: TransactionInstruction[];
+}): Promise<Transaction> {
   const { blockhash, lastValidBlockHeight } =
     await connection.getLatestBlockhash("confirmed");
 
@@ -302,76 +308,84 @@ export async function getWalletTradeHistory({
 }): Promise<TradeHistoryEntry[]> {
   const program = getPumpProgram(connection);
 
-  const signatures = await connection.getSignaturesForAddress(user, {
-    limit,
-  });
+  const signatures = (
+    await connection.getSignaturesForAddress(user, { limit })
+  ).filter((sigInfo) => !sigInfo.err);
 
   const entries: TradeHistoryEntry[] = [];
 
-  for (const sigInfo of signatures) {
-    if (sigInfo.err) {
-      continue;
-    }
+  const FETCH_CONCURRENCY = 8;
 
-    const tx = await connection.getTransaction(sigInfo.signature, {
-      commitment: "confirmed",
-      maxSupportedTransactionVersion: 0,
-    });
+  for (let i = 0; i < signatures.length; i += FETCH_CONCURRENCY) {
+    const batch = signatures.slice(i, i + FETCH_CONCURRENCY);
 
-    const logs = tx?.meta?.logMessages;
+    const txs = await Promise.all(
+      batch.map((sigInfo) =>
+        connection.getTransaction(sigInfo.signature, {
+          commitment: "confirmed",
+          maxSupportedTransactionVersion: 0,
+        }),
+      ),
+    );
 
-    if (!tx || !logs) {
-      continue;
-    }
+    for (let j = 0; j < batch.length; j++) {
+      const sigInfo = batch[j];
+      const tx = txs[j];
+      const logs = tx?.meta?.logMessages;
 
-    const touchesPump = tx.transaction.message
-      .getAccountKeys()
-      .staticAccountKeys.some((key) => key.equals(PUMP_PROGRAM_ID));
-
-    if (!touchesPump) {
-      continue;
-    }
-
-    for (const log of logs) {
-      const prefix = "Program data: ";
-
-      if (!log.startsWith(prefix)) {
+      if (!tx || !logs) {
         continue;
       }
 
-      let decoded;
+      const touchesPump = tx.transaction.message
+        .getAccountKeys()
+        .staticAccountKeys.some((key) => key.equals(PUMP_PROGRAM_ID));
 
-      try {
-        decoded = program.coder.events.decode(log.slice(prefix.length));
-      } catch {
+      if (!touchesPump) {
         continue;
       }
 
-      if (!decoded || decoded.name !== "tradeEvent") {
-        continue;
+      for (const log of logs) {
+        const prefix = "Program data: ";
+
+        if (!log.startsWith(prefix)) {
+          continue;
+        }
+
+        let decoded;
+
+        try {
+          decoded = program.coder.events.decode(log.slice(prefix.length));
+        } catch {
+          continue;
+        }
+
+        if (!decoded || decoded.name !== "tradeEvent") {
+          continue;
+        }
+
+        const data = decoded.data as {
+          mint: PublicKey;
+          solAmount: BN;
+          tokenAmount: BN;
+          isBuy: boolean;
+          user: PublicKey;
+        };
+
+        if (!data.user.equals(user)) {
+          continue;
+        }
+
+        entries.push({
+          signature: sigInfo.signature,
+          slot: sigInfo.slot,
+          blockTime: sigInfo.blockTime ?? null,
+          mint: data.mint.toBase58(),
+          isBuy: data.isBuy,
+          solAmount: data.solAmount.toNumber() / 1e9,
+          tokenAmount: data.tokenAmount.toString(),
+        });
       }
-
-      const data = decoded.data as {
-        mint: PublicKey;
-        solAmount: BN;
-        tokenAmount: BN;
-        isBuy: boolean;
-        user: PublicKey;
-      };
-
-      if (!data.user.equals(user)) {
-        continue;
-      }
-
-      entries.push({
-        signature: sigInfo.signature,
-        slot: sigInfo.slot,
-        blockTime: sigInfo.blockTime ?? null,
-        mint: data.mint.toBase58(),
-        isBuy: data.isBuy,
-        solAmount: data.solAmount.toNumber() / 1e9,
-        tokenAmount: data.tokenAmount.toString(),
-      });
     }
   }
 

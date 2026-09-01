@@ -13,8 +13,9 @@ import BN from "bn.js";
 import SolanaWalletButton from "../../components/SolanaWalletButton";
 
 import {
-  buildBuyTransaction,
-  buildSellTransaction,
+  buildBuyInstructions,
+  buildSellInstructions,
+  finalizeTransaction,
   getMintTradeState,
   solToLamports,
   type MintTradeState,
@@ -134,11 +135,17 @@ export default function TradePage() {
     setSignature("");
 
     try {
-      const transaction = await buildBuyTransaction({
+      const instructions = await buildBuyInstructions({
         connection,
         mint,
         user: publicKey,
         solAmountLamports: solToLamports(sol),
+      });
+
+      const transaction = await finalizeTransaction({
+        connection,
+        user: publicKey,
+        instructions,
       });
 
       const signed = await signTransaction(transaction);
@@ -184,11 +191,17 @@ export default function TradePage() {
     setSignature("");
 
     try {
-      const transaction = await buildSellTransaction({
+      const instructions = await buildSellInstructions({
         connection,
         mint,
         user: publicKey,
         tokenAmount: new BN(Math.floor(tokens)),
+      });
+
+      const transaction = await finalizeTransaction({
+        connection,
+        user: publicKey,
+        instructions,
       });
 
       const signed = await signTransaction(transaction);
