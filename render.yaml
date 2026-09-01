@@ -4,6 +4,8 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
+    dockerBuildArgs:
+      NEXT_PUBLIC_SOLANA_RPC_URL: ${NEXT_PUBLIC_SOLANA_RPC_URL}
     plan: starter
     region: oregon
     healthCheckPath: /
