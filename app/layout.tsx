@@ -4,6 +4,7 @@ import "./globals.css";
 
 import Providers from "./providers";
 import SolanaProvider from "./solana-provider";
+import Navbar from "./components/Navbar";
 
 export const metadata: Metadata = {
   title: "Token Launcher",
@@ -19,7 +20,10 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <Providers>
-          <SolanaProvider>{children}</SolanaProvider>
+          <SolanaProvider>
+            <Navbar />
+            {children}
+          </SolanaProvider>
         </Providers>
       </body>
     </html>

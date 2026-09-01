@@ -24,6 +24,9 @@
 /artifacts/
 /cache/
 
+# runtime data (created-coins registry)
+/data/
+
 # misc
 .DS_Store
 *.pem
