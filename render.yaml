@@ -9,6 +9,10 @@ services:
     plan: starter
     region: oregon
     healthCheckPath: /
+    disk:
+      name: x-token-data
+      mountPath: /app/data
+      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
