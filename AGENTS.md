@@ -19,6 +19,33 @@ When writing or modifying tests, configuring `hardhat.config.ts`, or interacting
 - Hardhat 3 — https://hardhat.org/llms.txt
 - viem — https://viem.sh/llms.txt
 
+# Project Rules
+
+## File Reading
+- Grep/search for the relevant selector, function, class, or ID before reading a file.
+- Read only the needed line range, not the whole file.
+- Don't re-read a file already read this session unless it changed.
+- Check for duplicate/conflicting definitions of the same selector or function before editing.
+
+## Output Format
+- Never paste back a full file after editing. Show only the changed lines: before → after.
+- No restating the request. No unrelated explanation. Fix, then stop.
+- Don't re-list unchanged code.
+- No theory, background, or "why this generally happens" explanations during coding chat — just the fix.
+- No preamble like "I understand" or "let me explain" — go straight to the diagnosis/fix.
+
+## Editing Behavior
+- Surgical edits only — don't touch unrelated code unless asked.
+- If a bug is caused by duplicate/dead/conflicting code, say which one to delete instead of adding another override on top.
+- Use one shared source of truth (variable/constant) instead of repeating the same value in multiple places.
+
+## Structure
+- Main file(s): [fill in]
+- Key components: [fill in]
+
+## Known Trouble Spots
+- [fill in as they come up]
+
 <!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
