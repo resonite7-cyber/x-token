@@ -2,39 +2,31 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Rocket,
-  ArrowLeftRight,
-  Briefcase,
-  Wallet,
-  ChevronDown,
-} from "lucide-react";
-import { useWallet } from "@solana/wallet-adapter-react";
-import { useWalletModal } from "@solana/wallet-adapter-react-ui";
+import { Rocket, ArrowLeftRight, PieChart } from "lucide-react";
 
-function truncateAddress(address: string) {
-  return `${address.slice(0, 4)}...${address.slice(-4)}`;
-}
+import EvmWalletButton from "./EvmWalletButton";
+import { robinhoodChain } from "../src/lib/pons/chain";
+import { PAGE_MAX_WIDTH } from "../src/ui";
 
 const NAV_LINKS = [
   {
-    href: "/trade",
+    href: "/pons",
     label: "Market",
     icon: ArrowLeftRight,
   },
   {
-    href: "/portfolio",
-    label: "Portfolio",
-    icon: Briefcase,
+    href: "/pons/launch",
+    label: "Launch",
+    icon: Rocket,
   },
   {
-    href: "/",
-    label: "Create Token",
-    icon: Rocket,
+    href: "/portfolio",
+    label: "Portfolio",
+    icon: PieChart,
   },
 ];
 
-function isActive(pathname: string, href: string) {
+function matches(pathname: string, href: string) {
   if (href === "/") {
     return pathname === "/";
   }
@@ -42,24 +34,24 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+/*
+ * Only the most specific link highlights. Prefix matching alone cannot tell a
+ * parent from a child, so on /pons/launch both "/pons" and "/pons/launch"
+ * matched and both tabs lit up. The longest matching href wins instead.
+ */
+function activeHref(pathname: string) {
+  return NAV_LINKS.filter((link) => matches(pathname, link.href)).sort(
+    (a, b) => b.href.length - a.href.length,
+  )[0]?.href;
+}
+
 export default function Navbar() {
   const pathname = usePathname();
-
-  const { publicKey, connected, disconnect } = useWallet();
-
-  const { setVisible } = useWalletModal();
-
-  const handleWalletClick = () => {
-    if (connected) {
-      disconnect();
-    } else {
-      setVisible(true);
-    }
-  };
+  const current = activeHref(pathname);
 
   return (
     <nav className="sticky top-0 z-50 border-b border-white/[0.08] bg-[#05070b]/90 backdrop-blur-xl">
-      <div className="mx-auto flex h-[68px] max-w-[1280px] items-center justify-between px-5 lg:px-8">
+      <div className={`mx-auto flex h-[68px] w-full ${PAGE_MAX_WIDTH} items-center justify-between px-6`}>
         {/* =====================================================
             LOGO
         ===================================================== */}
@@ -107,7 +99,7 @@ export default function Navbar() {
           "
         >
           {NAV_LINKS.map((link) => {
-            const active = isActive(pathname, link.href);
+            const active = link.href === current;
             const Icon = link.icon;
 
             return (
@@ -154,45 +146,11 @@ export default function Navbar() {
             "
           >
             <span className="h-1.5 w-1.5 rounded-full bg-green-400 shadow-sm shadow-green-400/50" />
-            Devnet
+            {robinhoodChain.name}
           </div>
 
           {/* Wallet */}
-          <button
-            onClick={handleWalletClick}
-            className="
-              flex items-center gap-2
-              rounded-lg
-              border border-violet-500/30
-              bg-violet-500/10
-              px-3.5 py-2.5
-              text-xs font-semibold
-              text-violet-300
-              transition
-              hover:border-violet-500/50
-              hover:bg-violet-500/15
-              hover:text-white
-            "
-          >
-            <Wallet size={14} />
-
-            <span className="hidden sm:inline">
-              {connected && publicKey
-                ? truncateAddress(publicKey.toBase58())
-                : "Connect Wallet"}
-            </span>
-
-            <span className="sm:hidden">
-              {connected && publicKey
-                ? truncateAddress(publicKey.toBase58())
-                : "Wallet"}
-            </span>
-
-            <ChevronDown
-              size={13}
-              className="hidden sm:block text-violet-500"
-            />
-          </button>
+          <EvmWalletButton />
         </div>
       </div>
     </nav>
